@@ -1,11 +1,13 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #define ALPHABET_LENGTH 26
 #define ASCII_SHIFT 97
 #define ASCII_SHIFT_NUMBER 48
 #define EMPTY_STACK -1
 #define BASE 10
+#define READ '='
 
 
 enum Instruction {
@@ -22,20 +24,26 @@ typedef struct Entry{
 
 }Entry;
 
+typedef struct Value{
 
-typedef struct Value
-{
 	char* digits;
 }Value;
 
+typedef struct Variables{
 
-typedef struct Variables
-{
 	Value* values;
 }Variables;
 
-typedef struct Stack
-{
+typedef struct Looper { 
+
+	Entry* entries;
+	int entries_n;
+	Variables vals;
+}Looper;
+
+
+typedef struct Stack{
+
 	int* content;
 	int stack_size;
 	int content_size;
@@ -138,10 +146,56 @@ void add(char *a, char *b){
 	}
 }
 
+Looper initializeLooper(){
+	Looper l;
+	l.vals = initializeVariables();
+	l.entries_n = 0;
+	return l;
+}
+
+
+char* line(bool *isEnd){
+	char* res = malloc(sizeof(char));
+	int letters = 0, size = 1;
+	char c;
+	while((c = getchar()) != '\n' && c != EOF){
+		if(letters == size){
+			res = realloc(res,2*size);
+			size *= 2;
+		}
+		res[letters] = c;
+		letters++;
+	}
+	if(c == EOF){
+		*isEnd = true;
+	}
+	return res;
+}
+
+
+
+void read(Looper *l){
+	
+	bool isEnd = false;
+	while(!isEnd){
+		char* currentLine = line(&isEnd);
+		// line analysis here
+		if(currentLine[0] == READ){
+			printVariableValue(&l->vals,currentLine[1]);
+		}else{
+			printf("Ble ble");
+		}
+	}
+	
+}
+
+
+
 
 
 int main(void){	
-	//Variables v = initializeVariables();
+	Looper l = initializeLooper();
+	read(&l);
 }
 
 
