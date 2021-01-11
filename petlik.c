@@ -28,7 +28,7 @@ typedef struct Entry{
 }Entry;
 
 
-typedef struct Looper { 
+typedef struct Looper {
 
 	Entry* entries;
 	int entries_size;
@@ -86,7 +86,7 @@ void printVariableValue(Looper *l, char c){
 	printf("%s\n",value);
 }
 
-int getLen(char* a){
+int getLen(const char* a){
 	int i = 0;
 	while(*(a+i) != '\0'){
 		i++;
@@ -107,7 +107,7 @@ void detectifyLengths(char *a, char *b, char **shorter, char **longer){
 }
 
 void add(char **a, char *b){
-	
+
 	char *shorter = NULL,*longer = NULL;
 	detectifyLengths(*a,b,&shorter,&longer);
 	int minLen = getLen(shorter);
@@ -127,7 +127,7 @@ void add(char **a, char *b){
 			to_add = shorter[i-diff] - ASCII_SHIFT_NUMBER;
 		}
 		int val =  to_add + (longer[i] - ASCII_SHIFT_NUMBER) + next;
-		temp[i+1] = (char)((val % BASE) + ASCII_SHIFT_NUMBER); 
+		temp[i+1] = (char)((val % BASE) + ASCII_SHIFT_NUMBER);
 		next = (val >= BASE)?1:0;
 	}
 	if(next == 1){
@@ -142,7 +142,6 @@ Looper initializeLooper(){
 	Looper l;
 	l.variables = malloc(ALPHABET_LENGTH*sizeof(char*));
 	for(int x = 0; x < ALPHABET_LENGTH;x++){
-		l.variables[x] = malloc(sizeof(char));
 		l.variables[x] = "0";
 	}
 	l.entries_n = 0;
@@ -172,6 +171,10 @@ char* line(int *len, bool *isEnd){
 }
 
 void addEntry(Entry e,Looper *l){
+	if(l->entries_size == 0){
+		l->entries = malloc((unsigned)sizeof(Entry));
+		l->entries_size = 1;
+	}
 	if(l->entries_size == l->entries_n){
 		int m = 2*(l->entries_size);
 		l->entries = realloc(l->entries,(unsigned)m*sizeof(Entry));
@@ -185,8 +188,8 @@ Entry createEntry(int id, enum Instruction i, char* parameter1, char* parameter2
 	Entry e;
 	e.id = id;
 	e.instruction = i;
-	e.parameter1 = parameter1; 
-	e.parameter2 = parameter2;	
+	e.parameter1 = parameter1;
+	e.parameter2 = parameter2;
 	return e;
 }
 
@@ -203,7 +206,7 @@ void printEntries(Looper *l){
 			case INC:
 				pol = "INC";
 				break;
-			case JMP:	
+			case JMP:
 				pol = "JMP";
 				break;
 			case DJZ:
@@ -261,7 +264,10 @@ void initializeStack(Stack *s){
 	s->content_size = 0;
 }
 
-
+void killStack(Stack *s){
+	free(s->content);
+	free(s);
+}
 
 
 void compileLine(Looper *l,char* cline,int n){
@@ -291,7 +297,7 @@ void compileLine(Looper *l,char* cline,int n){
 				Entry closing = createEntry(l->entries_n,CLR,mainVariable,NULL);
 				addEntry(closing,l);
 				i++;
-			}else{ 
+			}else{
 				pushStack(&s,l->entries_n);
 				i++;
 				Entry djz = createEntry(l->entries_n,DJZ,mainVariable,NULL);
@@ -320,6 +326,7 @@ void compileLine(Looper *l,char* cline,int n){
 		}
 	}
 	addEntry(createEntry(l->entries_n,HLT,NULL,NULL),l);
+	//killStack(&s);
 }
 
 void clear(char **a){
@@ -328,8 +335,7 @@ void clear(char **a){
 
 
 void inc(char **a){
-	char *b = malloc(sizeof(char)); 
-	b = "1";
+	char *b = "1";
 	add(a,b);
 }
 
@@ -342,9 +348,9 @@ bool isZero(char *a){
 
 int charPointerToInt(char* a){
 	int num = 0;
-	while(*a) { 
+	while(*a) {
 		num = ((*a) - '0') + num * 10;
-		a++;   
+		a++;
 	}
 	return num;
 }
@@ -357,16 +363,25 @@ void decrement(char *a){
 		i--;
 	}
 	char g = a[i] - 1;
-	a[i] = g; 
+	a[i] = g;
 }
 
 void freeResources(Looper *l){
+	for(int i = 0; i < l->entries_n; i++){
+		free(l->entries[i].parameter1);
+		free(l->entries[i].parameter2);
+	}
 	free(l->entries);
 	l->entries_n = 0;
 	l->entries_size = 0;
 }
 
-
+void free2D(char **ptr,int n){
+	for(int x = 0; x < n; x++){
+		free(ptr[x]);
+	}
+	free(ptr);
+}
 
 
 void interpreteCode(Looper *l){
@@ -374,25 +389,25 @@ void interpreteCode(Looper *l){
 	int i = 0;
 	while(i < l->entries_n){
 		Entry act = l->entries[i];
-		char* p1 = act.parameter1;
-		char* p2 = act.parameter2;
+		char *p1 = act.parameter1;
+		char *p2 = act.parameter2;
 		switch(act.instruction){
 				case ADD:
 					add(&variableTable[p1[0]-ASCII_SHIFT],variableTable[p2[0]-ASCII_SHIFT]);
 					i++;
 				break;
 			case INC:
-					inc(&variableTable[p1[0] - ASCII_SHIFT]);
+					inc(&variableTable[p1[0]-ASCII_SHIFT]);
 					i++;
 				break;
-			case JMP:	
+			case JMP:
 					i = charPointerToInt(p1);
 				break;
 			case DJZ:
-				if(isZero(variableTable[p1[0] -ASCII_SHIFT])){
+				if(isZero(variableTable[p1[0]-ASCII_SHIFT])){
 					i = charPointerToInt(p2);
 				}else{
-					decrement(variableTable[p1[0] -ASCII_SHIFT]);
+					decrement(variableTable[p1[0]-ASCII_SHIFT]);
 					i++;
 				}
 				break;
@@ -400,13 +415,12 @@ void interpreteCode(Looper *l){
 				i++;
 				break;
 			case CLR:
-				clear(&variableTable[p1[0] -ASCII_SHIFT]);
+				clear(&variableTable[p1[0]-ASCII_SHIFT]);
 				i++;
 				break;
 		}
 	}
-	free(p1);
-	free(p2);
+
 	freeResources(l);
 }
 
@@ -414,7 +428,7 @@ void interpreteCode(Looper *l){
 
 
 void read(Looper *l){
-	
+
 	bool isEnd = false;
 	while(!isEnd){
 		int len;
@@ -426,11 +440,14 @@ void read(Looper *l){
 			compileLine(l,currentLine,len);
 			interpreteCode(l);
 		}
+//		 free(currentLine);
 	}
+	free2D(l->variables,ALPHABET_LENGTH);
+	free(l);
 }
 
 
-int main(void){	
+int main(void){
 	Looper l = initializeLooper();
 	read(&l);
 }
