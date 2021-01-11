@@ -27,23 +27,13 @@ typedef struct Entry{
 
 }Entry;
 
-typedef struct Value{
-
-	char* digits;
-	int len;
-}Value;
-
-typedef struct Variables{
-
-	Value* values;
-}Variables;
 
 typedef struct Looper { 
 
 	Entry* entries;
 	int entries_size;
 	int entries_n;
-	Variables vals;
+	char** variables;
 }Looper;
 
 
@@ -90,32 +80,10 @@ void printStack(Stack *s){
 }
 
 
-Variables initializeVariables(){
-	Variables v;
-	v.values = malloc(ALPHABET_LENGTH*(sizeof(Value)));
-	for(int i = 0; i < ALPHABET_LENGTH; i++){
-		v.values[i].digits = malloc(sizeof(char));
-		v.values[i].digits[0] = '0';
-		v.values[i].len = 1;
-	}
-	return v;
-}
 
-Looper initializeLooper(){
-	Looper l;
-	l.vals = initializeVariables();
-	l.entries_n = 0;
-	l.entries_size = 1;
-	return l;
-}
-
-void printVariableValue(Variables *v, char c){
-	Value val = v->values[c - ASCII_SHIFT];
-	int len = val.len;
-	for(int i = 0; i < len; i++){
-		printf("%c",val.digits[i]);
-	}
-	printf("\n");
+void printVariableValue(Looper *l, char c){
+	char* value = l->variables[c - ASCII_SHIFT];
+	printf("%s\n",value);
 }
 
 int getLen(char* a){
@@ -138,13 +106,18 @@ void detectifyLengths(char *a, char *b, char **shorter, char **longer){
 	}
 }
 
-void add(char **a, char *b, int *newLen){
+void add(char **a, char *b){
 	
 	char *shorter = NULL,*longer = NULL;
 	detectifyLengths(*a,b,&shorter,&longer);
-	int minLen = getLen(shorter),maxLen = getLen(longer);
+	int minLen = getLen(shorter);
+	int maxLen = getLen(longer);
 	int next = 0;
-	char *temp = malloc((unsigned)(maxLen+1)*sizeof(char));
+	char *temp = malloc((unsigned)(maxLen+2)*sizeof(char));
+	for(int i = 0; i < maxLen+2; i++){
+		temp[i] = '0';
+	}
+	temp[maxLen+1] = '\0';
 	int diff = maxLen - minLen;
 	int to_add;
 	for(int i = maxLen - 1; i >= 0; i--){
@@ -159,16 +132,23 @@ void add(char **a, char *b, int *newLen){
 	}
 	if(next == 1){
 		temp[0] = '1';
-		*newLen = maxLen+1;
 	}else{
 		temp++;
-		*newLen = maxLen;
 	}
 	*a = temp;
-
 }
 
-
+Looper initializeLooper(){
+	Looper l;
+	l.variables = malloc(ALPHABET_LENGTH*sizeof(char*));
+	for(int x = 0; x < ALPHABET_LENGTH;x++){
+		l.variables[x] = malloc(sizeof(char));
+		l.variables[x] = "0";
+	}
+	l.entries_n = 0;
+	l.entries_size = 1;
+	return l;
+}
 
 
 char* line(int *len, bool *isEnd){
@@ -342,17 +322,15 @@ void compileLine(Looper *l,char* cline,int n){
 	addEntry(createEntry(l->entries_n,HLT,NULL,NULL),l);
 }
 
-void clear(Value *v){
-	char* new_val = malloc(sizeof(char));
-	new_val = "0";
-	v->digits = new_val;
-	v->len = 1;
+void clear(char **a){
+	*a = "0";
 }
 
 
-void inc(char **a,int* newLen){
-	char* b = "1";
-	add(a,b,newLen);
+void inc(char **a){
+	char *b = malloc(sizeof(char)); 
+	b = "1";
+	add(a,b);
 }
 
 bool isZero(char *a){
@@ -372,20 +350,14 @@ int charPointerToInt(char* a){
 }
 
 
-void decrement(char **a,int n){
-
-	int i = n - 1;
-	while(i >= 0 && **a == '0'){
-		**a = '9';
+void decrement(char *a){
+	int i = getLen(a) - 1;
+	while(i >= 0 && a[i] == '0'){
+		a[i] = '9';
 		i--;
 	}
-	char g = **a - 1;
-	if(g == '0'){
-		(*a)++;
-	}else{
-		**a = g; 
-	}
-	
+	char g = a[i] - 1;
+	a[i] = g; 
 }
 
 void freeResources(Looper *l){
@@ -398,33 +370,29 @@ void freeResources(Looper *l){
 
 
 void interpreteCode(Looper *l){
-	Value *v = l->vals.values;
+	char **variableTable = l->variables;
 	int i = 0;
 	while(i < l->entries_n){
-		printf("wartość: %s | długość: %d\n",v['a'-ASCII_SHIFT].digits,v['a'-ASCII_SHIFT].len);
 		Entry act = l->entries[i];
 		char* p1 = act.parameter1;
 		char* p2 = act.parameter2;
-		int* newLen = malloc(sizeof(int));
 		switch(act.instruction){
 				case ADD:
-					add(&v[p1[0] - ASCII_SHIFT].digits,v[p2[0] - ASCII_SHIFT].digits,newLen);
-					v[p1[0] - ASCII_SHIFT].len = *newLen;
+					add(&variableTable[p1[0]-ASCII_SHIFT],variableTable[p2[0]-ASCII_SHIFT]);
 					i++;
 				break;
 			case INC:
-					inc(&v[p1[0] - ASCII_SHIFT].digits,newLen);
-					v[p1[0] - ASCII_SHIFT].len = *newLen;
+					inc(&variableTable[p1[0] - ASCII_SHIFT]);
 					i++;
 				break;
 			case JMP:	
 					i = charPointerToInt(p1);
 				break;
 			case DJZ:
-				if(isZero(v[p1[0] -ASCII_SHIFT].digits)){
+				if(isZero(variableTable[p1[0] -ASCII_SHIFT])){
 					i = charPointerToInt(p2);
 				}else{
-					decrement(&v[p1[0]-ASCII_SHIFT].digits,v[p1[0]-ASCII_SHIFT].len);
+					decrement(variableTable[p1[0] -ASCII_SHIFT]);
 					i++;
 				}
 				break;
@@ -432,11 +400,13 @@ void interpreteCode(Looper *l){
 				i++;
 				break;
 			case CLR:
-				clear(&v[p1[0] -ASCII_SHIFT]);
+				clear(&variableTable[p1[0] -ASCII_SHIFT]);
 				i++;
 				break;
 		}
 	}
+	free(p1);
+	free(p2);
 	freeResources(l);
 }
 
@@ -451,7 +421,7 @@ void read(Looper *l){
 		char* currentLine = line(&len,&isEnd);
 		// line analysis here
 		if(currentLine[0] == READ){
-			printVariableValue(&l->vals,currentLine[1]);
+			printVariableValue(l,currentLine[1]);
 		}else{
 			compileLine(l,currentLine,len);
 			interpreteCode(l);
