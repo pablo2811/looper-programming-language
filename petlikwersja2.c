@@ -29,20 +29,17 @@ typedef struct Entry{
 
 typedef struct Value{
 
-	char* digits;
+	int* digits;
+	int size;
 }Value;
 
-typedef struct Variables{
-
-	Value* values;
-}Variables;
 
 typedef struct Looper { 
 
 	Entry* entries;
 	int entries_size;
 	int entries_n;
-	Variables vals;
+	Value *vals;
 }Looper;
 
 
@@ -89,30 +86,38 @@ void printStack(Stack *s){
 }
 
 
-Variables initializeVariables(){
-	Variables v;
-	v.values = malloc(ALPHABET_LENGTH*(sizeof(Value)));
+Value* initializeVariables(){
+	Value *v;
+	v  = malloc(ALPHABET_LENGTH*(sizeof(Value)));
 	for(int i = 0; i < ALPHABET_LENGTH; i++){
-		v.values[i].digits = malloc(sizeof(char));
-		v.values[i].digits[0] = '0';
+		Value this;
+		this.digits = malloc((unsigned)sizeof(int));
+		this.size = 1;
+		this.digits[0] = 0; 
+		v[i] = this;
 	}
 	return v;
 }
 
-void printVariableValue(Variables *v, char c){
-	Value val = v->values[c - ASCII_SHIFT];
-	printf("%s\n",val.digits);
+void printVariableValue(Value *v, char c){
+	Value val = v[c - ASCII_SHIFT];
+	int *d = v->digits;
+	while(d != NULL){
+		printf("%d",*d);
+		d++;
+	}
 }
 
-int getLen(char* a){
+int getLen(int* a){
 	int i = 0;
-	while(*(a+i) != '\0'){
+	while(a != NULL){
+		a++;
 		i++;
 	}
 	return i;
 }
 
-void detectifyLengths(char *a, char *b, char **shorter, char **longer){
+void detectifyLengths(int *a, int *b, int **shorter, int **longer){
 	int b_len = getLen(b);
 	int a_len = getLen(a);
 	if(a_len > b_len){
@@ -124,31 +129,52 @@ void detectifyLengths(char *a, char *b, char **shorter, char **longer){
 	}
 }
 
-void add(char **a, char *b){
+Value add(Value *a, Value *b){
 	
-	char *shorter = NULL,*longer = NULL;
-	detectifyLengths(*a,b,&shorter,&longer);
-	int minLen = getLen(shorter),maxLen = getLen(longer);
+	int *shorter = NULL,*longer = NULL;
+	int maxLen,minLen;
+	if(a->size > b->size){
+		shorter = b->digits;
+		longer = a->digits;
+		maxLen = a->size;
+		minLen = b->size;
+	}else{
+		shorter = a->digits;
+		longer = b->digits;
+		maxLen = b->size;
+		minLen = a->size;
+	}
 	int next = 0;
-	char *temp = malloc((unsigned)(maxLen+1)*sizeof(char));
+	int *temp = realloc(temp,(unsigned)(maxLen+1)*sizeof(int));
 	int diff = maxLen - minLen;
 	int to_add;
 	for(int i = maxLen - 1; i >= 0; i--){
 		if(i < diff){
 			to_add = 0;
 		}else{
-			to_add = shorter[i-diff] - ASCII_SHIFT_NUMBER;
+			to_add = shorter[i-diff];
 		}
-		int val =  to_add + (longer[i] - ASCII_SHIFT_NUMBER) + next;
-		temp[i+1] = (char)((val % BASE) + ASCII_SHIFT_NUMBER); 
+		int val =  to_add + longer[i] + next;
+		temp[i+1] = val % BASE; 
 		next = (val >= BASE)?1:0;
 	}
+	Value new_value;
 	if(next == 1){
-		temp[0] = '1';
+		temp[0] = 1;
+		new_value.size = maxLen+1;
+		new_value.digits = malloc((unsigned)(maxLen+1)*sizeof(int));
+		// a->digits[0] = 1;
+		// (a->size)++;
 	}else{
 		temp++;
+		new_value.size = maxLen;
+		new_value.digits = malloc((unsigned)(maxLen)*sizeof(int));
+		// (a->digits)++;
+		// a->digits = temp;
 	}
-	*a = temp;
+	new_value.digits = temp;
+	return new_value;
+
 }
 
 Looper initializeLooper(){
@@ -331,21 +357,28 @@ void compileLine(Looper *l,char* cline,int n){
 	addEntry(createEntry(l->entries_n,HLT,NULL,NULL),l);
 }
 
-void clear(char **a){
-	*a = "0";
+void clear(Value *a){
+	a->digits = realloc(a->digits,sizeof(int));
+	a->digits = 0;
+	a->size = 1;
 }
 
 
-void inc(char **a){
-	char* b = "1";
-	add(a,b);
+void inc(Value *a){
+	int* b = malloc(sizeof(int));
+	*b = 1;
+	Value x;
+	x.size = 1;
+	x.digits = malloc(sizeof(int));
+	x.digits[0] = 1;
+	add(a,&x);
 }
 
-bool isZero(char *a){
-	while(*a == '0'){
+bool isZero(int *a){
+	while(a != NULL && *a == 0){
 		a++;
 	}
-	return (*a == '\0');
+	return (a == NULL);
 }
 
 int charPointerToInt(char* a){
@@ -358,14 +391,15 @@ int charPointerToInt(char* a){
 }
 
 
-void decrement(char *a){
-	int i = getLen(a) - 1;
-	while(i >= 0 && a[i] == '0'){
-		a[i] = '9';
+void decrement(Value *v){
+	int i = v->size - 1;
+	int *a = v->digits;
+	while(i >= 0 && *(a+i) == 0){
+		*(a+i) = 9;
 		i--;
 	}
-	char g = a[i] - 1;
-	a[i] = g; 
+	int g = *(a+i) - 1;
+	*(a+i) = g; 
 }
 
 void freeResources(Looper *l){
@@ -378,20 +412,19 @@ void freeResources(Looper *l){
 
 
 void interpreteCode(Looper *l){
-	Value *v = l->vals.values;
+	Value *v = l->vals;
 	int i = 0;
 	while(i < l->entries_n){
-		printf("%s\n",v['a'-ASCII_SHIFT].digits);
 		Entry act = l->entries[i];
 		char* p1 = act.parameter1;
 		char* p2 = act.parameter2;
 		switch(act.instruction){
 				case ADD:
-					add(&v[p1[0] - ASCII_SHIFT].digits,v[p2[0] - ASCII_SHIFT].digits);
+					v[p1[0] - ASCII_SHIFT] = add(&(v[p1[0] - ASCII_SHIFT]),&v[p2[0] - ASCII_SHIFT]);
 					i++;
 				break;
 			case INC:
-					inc(&v[p1[0] - ASCII_SHIFT].digits);
+					inc(&v[p1[0] - ASCII_SHIFT]);
 					i++;
 				break;
 			case JMP:	
@@ -401,7 +434,7 @@ void interpreteCode(Looper *l){
 				if(isZero(v[p1[0] -ASCII_SHIFT].digits)){
 					i = charPointerToInt(p2);
 				}else{
-					decrement(v[p1[0]-ASCII_SHIFT].digits);
+					decrement(&v[p1[0]-ASCII_SHIFT]);
 					i++;
 				}
 				break;
@@ -409,7 +442,7 @@ void interpreteCode(Looper *l){
 				i++;
 				break;
 			case CLR:
-				clear(&v[p1[0] -ASCII_SHIFT].digits);
+				clear(&v[p1[0] -ASCII_SHIFT]);
 				i++;
 				break;
 		}
@@ -428,7 +461,7 @@ void read(Looper *l){
 		char* currentLine = line(&len,&isEnd);
 		// line analysis here
 		if(currentLine[0] == READ){
-			printVariableValue(&l->vals,currentLine[1]);
+			printVariableValue(l->vals,currentLine[1]);
 		}else{
 			compileLine(l,currentLine,len);
 			interpreteCode(l);
@@ -436,8 +469,17 @@ void read(Looper *l){
 	}
 }
 
+void printValue(Value *v){
+	for(int i = 0 ; i < v->size; i++){
+		printf("%d",*(v->digits));
+		(v->digits)++;
+	}
+	printf("\n");
+}
+
 
 int main(void){	
 	Looper l = initializeLooper();
 	read(&l);
+
 }
